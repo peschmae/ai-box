@@ -1,0 +1,31 @@
+# everything above this line is from vanilla ubuntu 24.04.
+# ====================================================================================================================
+# everything below is customization.
+PATH="$HOME/bin:$HOME/.local/bin:$PATH"
+eval "$(mise activate bash)"
+
+export SHELL="/bin/bash"
+export HISTCONTROL=ignoreboth:erasedups
+export vim=nvim
+export vi=nvim
+export vimdiff="nvim -d"
+export VISUAL=vim
+export EDITOR=vim
+set -o vi
+
+alias ll='ls -la --color=auto'
+alias la='ls -la --color=auto'
+alias vi='nvim'
+alias vim='nvim'
+alias fyl='fly'
+alias k='kubectl'
+
+git config --global diff.tool nvimdiff
+git config --global merge.tool nvimdiff
+
+kiro() {
+  if ! kiro-cli whoami &>/dev/null; then
+    kiro-cli login --identity-provider ${AWS_IDENTITY_PROVIDER_URL} --region ${AWS_REGION} --use-device-flow
+  fi
+  kiro-cli "$@"
+}

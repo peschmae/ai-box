@@ -1,0 +1,135 @@
+# Lima configuration for ai-box
+# Usage:
+#   limactl create --name ai-box ai-box.yaml
+#   limactl start ai-box
+#   limactl shell --sync . ai-box
+#
+# Requires Lima >= 2.1 for --sync support.
+# Required: export AWS_IDENTITY_PROVIDER_URL and AWS_REGION before creating the instance,
+# or source ~/.aws_identity_provider on the host first.
+
+minimumLimaVersion: "2.1.0"
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+    arch: "x86_64"
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+
+cpus: 4
+memory: "8GiB"
+disk: "60GiB"
+
+vmOpts:
+  vz:
+    rosetta:
+      enabled: true
+      binfmt: true
+
+# AWS env vars are set at create time via --set and written to /etc/environment.
+# Lima rewrites these on every "limactl start".
+# Ensure AWS_IDENTITY_PROVIDER_URL and AWS_REGION are exported on the host before starting.
+env:
+  AWS_IDENTITY_PROVIDER_URL: ""
+  AWS_REGION: ""
+
+# No host mounts — required for "limactl shell --sync" to work
+mounts: []
+
+containerd:
+  system: true
+  user: true
+
+provision:
+  # root provisioning
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+
+      # AWS env vars via profile (reads from Lima-injected /etc/environment on each login)
+      grep -E '^(AWS_IDENTITY_PROVIDER_URL|AWS_REGION)=' /etc/environment > /etc/profile.d/aws_identity_provider.sh 2>/dev/null || true
+      sed -i 's/^/export /' /etc/profile.d/aws_identity_provider.sh
+
+      export DEBIAN_FRONTEND=noninteractive
+
+      # kubectl repo
+      mkdir -p /etc/apt/keyrings
+      curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+
+      # taskfile repo
+      curl -1sLf 'https://dl.cloudsmith.io/public/task/task/setup.deb.sh' | bash
+
+      # single update for all repos
+      apt-get update
+      apt-get install -y rsync git unzip bzip2 tmux ruby-dev python3-dev \
+        curl wget jq ca-certificates apt-transport-https parallel util-linux \
+        iputils-arping iputils-clockdiff iputils-ping iputils-tracepath iproute2 \
+        cmake openssl dnsutils uuid-runtime netcat-openbsd gettext-base lsb-release psmisc \
+        iptables ethtool wireguard net-tools traceroute apache2-utils openssh-client \
+        libreadline-dev libtool libssl-dev libffi-dev libyaml-dev libz-dev chrony \
+        bsdextrautils fonts-noto-color-emoji fonts-noto-core fonts-symbola \
+        kubectl task
+
+      # neovim (pinned to avoid treesitter ABI mismatches)
+      NVIM_VERSION="v0.12.1"
+      NVIM_ARCH="$(uname -m | sed 's/aarch64/arm64/')"
+      curl -fsSL "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux-${NVIM_ARCH}.tar.gz" | tar xz -C /opt
+      ln -sf "/opt/nvim-linux-${NVIM_ARCH}/bin/nvim" /usr/local/bin/nvim
+      ln -sf "/opt/nvim-linux-${NVIM_ARCH}/bin/nvim" /usr/local/bin/vim
+
+      # sops
+      VM_ARCH="$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')"
+      SOPS_VERSION="v3.11.0"
+      curl -fsSLo /usr/local/bin/sops "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${VM_ARCH}"
+      chmod +x /usr/local/bin/sops
+
+      # age
+      AGE_VERSION="v1.3.1"
+      curl -fsSL "https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/age-${AGE_VERSION}-linux-${VM_ARCH}.tar.gz" | tar xz -C /usr/local/bin --strip-components=1 age/age age/age-keygen
+      chmod +x /usr/local/bin/age /usr/local/bin/age-keygen
+
+  # user provisioning
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux
+      export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
+
+      # mise
+      curl https://mise.run | sh
+      mise --version
+      eval "$($HOME/.local/bin/mise activate bash)"
+
+      # languages
+      mise install golang@1.22.12 golang@1.24.12 golang@1.25.6 ruby@3.2.10 python@3.13.11 node@22
+      mise use --global golang@1.25.6 ruby@3.2.10 python@3.13.11 node@22
+
+      # add mise shims to PATH for non-interactive use
+      export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$PATH"
+
+      # golang tools
+      go install golang.org/x/tools/gopls@latest
+      go install golang.org/x/tools/cmd/goimports@latest
+
+      # python tools
+      pip install --user virtualenv ansible yamllint pgcli
+
+      # nodejs tools
+      npm install -g prettier
+
+      # ruby gems
+      gem install bundler httparty rest-client deep_merge hashdiff \
+        fugit chronic json rexml standard standardrb ruby-lsp
+
+      # nvim plugins are installed by lima-provision.sh after dotfiles are copied
+
+      # claude
+      npm install -g @anthropic-ai/claude-code --no-audit
+      claude --version || true
+
+      # kiro
+      curl -fsSL https://cli.kiro.dev/install | bash
+      export PATH="$HOME/.local/bin:$PATH"
+      kiro-cli --version
