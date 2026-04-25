@@ -9,7 +9,28 @@
   "allowedTools": ["*"],
   "toolsSettings": {
     "shell": {
-      "deniedCommands": ["git.*", ".*\\bgit\\b.*"]
+      "deniedCommands": [
+        ".*\\bgit\\s+log\\b.*",
+        ".*\\bgit\\s+show\\b.*",
+        ".*\\bgit\\s+blame\\b.*",
+        ".*\\bgit\\s+shortlog\\b.*",
+        ".*\\bgit\\s+config\\b.*",
+        ".*\\bgit\\s+remote\\b.*",
+        ".*\\bgit\\s+whatchanged\\b.*",
+        ".*\\bgit\\s+reflog\\b.*",
+        ".*\\bgit\\s+rev-parse\\b.*",
+        ".*\\bgit\\s+cat-file\\b.*",
+        ".*\\bgit\\s+ls-tree\\b.*",
+        ".*\\bgit\\s+ls-remote\\b.*",
+        ".*\\bgit\\s+for-each-ref\\b.*",
+        ".*\\bgit\\s+var\\b.*",
+        ".*\\bgit\\s+credential\\b.*",
+        ".*\\bgit\\s+add\\b.*",
+        ".*\\bgit\\s+commit\\b.*",
+        ".*\\bgit\\s+push\\b.*",
+        ".*\\bgit\\s+rebase\\b.*",
+        ".*\\bgit\\s+merge\\b.*"
+      ]
     },
     "read": {
       "deniedPaths": [

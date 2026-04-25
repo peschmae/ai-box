@@ -1,4 +1,3 @@
 {
-  "chat.defaultAgent": "kiro",
-  "chat.ui": "legacy"
+  "chat.defaultAgent": "kiro"
 }
